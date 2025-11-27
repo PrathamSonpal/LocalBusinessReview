@@ -8,7 +8,7 @@ import traceback
 
 st.set_page_config(page_title="Local Business Review Analyzer", layout="wide")
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.join(os.getcwd(), "app")
 
 MODEL_SENTIMENT = os.path.join(BASE_DIR, "sentiment_model.joblib")
 VEC_SENTIMENT   = os.path.join(BASE_DIR, "sentiment_tfidf_vectorizer.joblib")
