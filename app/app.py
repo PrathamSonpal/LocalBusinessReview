@@ -4,6 +4,7 @@ import numpy as np
 import joblib
 import os
 from io import BytesIO
+import trackback
 
 st.set_page_config(page_title="Local Business Review Analyzer", layout="wide")
 
@@ -17,13 +18,19 @@ VEC_RATING      = os.path.join(BASE_DIR, "rating_tfidf_vectorizer.joblib")
 def safe_load(path):
     try:
         if not os.path.exists(path):
-            # helpful error for missing file
             raise FileNotFoundError(path)
-        return joblib.load(path)
+        obj = joblib.load(path)
+        # success message (small confirmation)
+        st.success(f"Loaded: {os.path.basename(path)}")
+        return obj
     except FileNotFoundError:
         st.error(f"File not found: {path}")
     except Exception as e:
-        st.error(f"Error loading {path}: {e}")
+        # show full traceback in debug expander if present
+        with st.expander(f"Error loading {os.path.basename(path)} — details (expand)"):
+            st.text(traceback.format_exc())
+        # also show a brief message in the sidebar
+        st.error(f"Error loading {os.path.basename(path)}: {e}")
     return None
 
 @st.cache_resource(show_spinner=False)
