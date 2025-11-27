@@ -36,6 +36,20 @@ def load_models():
 
 sent_model, sent_vec, rating_model, rating_vec = load_models()
 
+# --- DEBUG: show file listings to help Streamlit Cloud troubleshooting ---
+with st.expander("Debug: show file listings (click to expand)"):
+    try:
+        st.write("Repo working dir:", os.getcwd())
+        st.write("Files in repo root:", sorted(os.listdir(".")))
+    except Exception as e:
+        st.write("Could not list repo root:", e)
+    try:
+        st.write("App folder (BASE_DIR):", BASE_DIR)
+        st.write("Files in app folder:", sorted(os.listdir(BASE_DIR)))
+    except Exception as e:
+        st.write("Could not list app folder:", e)
+# -----------------------------------------------------------------------
+
 # --- UI ---
 st.title("Local Business Review Analyzer — Ahmedabad & Bangalore")
 st.markdown(
@@ -100,6 +114,8 @@ with col1:
                 rating_label, rating_probs = pred_rating([review_input.strip()])
             except RuntimeError as e:
                 st.error(str(e))
+            except Exception as e:
+                st.error(f"Prediction failed: {e}")
             else:
                 st.markdown("**Prediction result**")
                 st.write(f"**Predicted sentiment:** `{sent_label[0]}`")
@@ -150,6 +166,8 @@ if uploaded_file is not None:
                     rating_labels, rating_probs = pred_rating(texts)
                 except RuntimeError as e:
                     st.error(str(e))
+                except Exception as e:
+                    st.error(f"Batch prediction failed: {e}")
                 else:
                     df["pred_sentiment"] = sent_labels
                     # convert prob dicts to JSON strings for saving
@@ -193,3 +211,5 @@ if st.checkbox("Create a tiny demo dataset (5 rows)"):
             st.dataframe(demo)
         except RuntimeError as e:
             st.error(str(e))
+        except Exception as e:
+            st.error(f"Demo prediction failed: {e}")
