@@ -4,7 +4,7 @@ import numpy as np
 import joblib
 import os
 from io import BytesIO
-import trackback
+import traceback
 
 st.set_page_config(page_title="Local Business Review Analyzer", layout="wide")
 
