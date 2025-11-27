@@ -7,13 +7,18 @@ from io import BytesIO
 
 st.set_page_config(page_title="Local Business Review Analyzer", layout="wide")
 
-MODEL_SENTIMENT = "sentiment_model.joblib"
-VEC_SENTIMENT = "sentiment_tfidf_vectorizer.joblib"
-MODEL_RATING = "rating_model_LogisticRegression.joblib"
-VEC_RATING = "rating_tfidf_vectorizer.joblib"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+MODEL_SENTIMENT = os.path.join(BASE_DIR, "sentiment_model.joblib")
+VEC_SENTIMENT   = os.path.join(BASE_DIR, "sentiment_tfidf_vectorizer.joblib")
+MODEL_RATING    = os.path.join(BASE_DIR, "rating_model_LogisticRegression.joblib")
+VEC_RATING      = os.path.join(BASE_DIR, "rating_tfidf_vectorizer.joblib")
 
 def safe_load(path):
     try:
+        if not os.path.exists(path):
+            # helpful error for missing file
+            raise FileNotFoundError(path)
         return joblib.load(path)
     except FileNotFoundError:
         st.error(f"File not found: {path}")
@@ -188,4 +193,3 @@ if st.checkbox("Create a tiny demo dataset (5 rows)"):
             st.dataframe(demo)
         except RuntimeError as e:
             st.error(str(e))
-
