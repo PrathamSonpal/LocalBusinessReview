@@ -252,3 +252,92 @@ if st.checkbox("Create a tiny demo dataset (5 rows)"):
             st.error(str(e))
         except Exception as e:
             st.error(f"Demo prediction failed: {e}")
+
+
+# UI / LAYOUT
+
+st.markdown(
+    """
+    <style>
+        .main-title {
+            font-size: 34px;
+            font-weight: 700;
+            text-align: center;
+            padding: 10px;
+            color: #262730;
+        }
+        .sub-header {
+            font-size: 22px;
+            font-weight: 600;
+            margin-top: 25px;
+            color: #333333;
+        }
+        .box {
+            padding: 18px;
+            border-radius: 10px;
+            background-color: #f8f9fa;
+            border: 1px solid #e1e1e1;
+            margin-bottom: 20px;
+        }
+        .positive { color: #3CB371; font-weight: 700; }
+        .negative { color: #FF4B4B; font-weight: 700; }
+        .neutral { color: #FFA500; font-weight: 700; }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+st.markdown("<div class='main-title'>📊 Local Business Review Analyzer</div>", unsafe_allow_html=True)
+st.markdown("### Ahmedabad & Bangalore — NLP-based Sentiment + Rating Prediction")
+
+st.markdown("---")
+
+# Sidebar
+with st.sidebar:
+    st.header("📦 Model Status")
+
+    def check(x): return "🟢 Loaded" if x else "🔴 Missing"
+
+    st.write("**Sentiment model:**", check(sent_model))
+    st.write("**Sentiment vectorizer:**", check(sent_vec))
+    st.write("**Rating model:**", check(rating_model))
+    st.write("**Rating vectorizer:**", check(rating_vec))
+
+    st.info("All models must show 🟢 for predictions to work.")
+
+    st.markdown("---")
+    st.caption("Developed for Data Science Project — 2025")
+
+# ============================
+#   SINGLE REVIEW PREDICTION
+# ============================
+
+st.markdown("<div class='sub-header'>1️⃣ Single Review Prediction</div>", unsafe_allow_html=True)
+
+review_input = st.text_area("Paste a review here", height=140, placeholder="Type or paste customer review...")
+
+if st.button("🔍 Predict Sentiment & Rating"):
+    if not review_input.strip():
+        st.warning("Please enter a review to analyze.")
+    else:
+        try:
+            sent_label, sent_probs = pred_sentiment([review_input])
+            rating_label, rating_probs = pred_rating([review_input])
+        except Exception as e:
+            st.error(f"Prediction error: {e}")
+        else:
+            st.markdown("<div class='box'>", unsafe_allow_html=True)
+            st.subheader("Prediction Result")
+
+            # Sentiment color coding
+            sl = sent_label[0].lower()
+            color_class = "positive" if sl == "positive" else "negative" if sl == "negative" else "neutral"
+
+            st.markdown(
+                f"**Sentiment:** <span class='{color_class}'>{sent_label[0]}</span>",
+                unsafe_allow_html=True
+            )
+
+            st.write(f"**Predicted Rating:** ⭐ {rating_label[0]}")
+
+            st.markdown("</div>", unsafe_allow_html=True)
