@@ -14,7 +14,7 @@ It includes:
 - A Streamlit web app
 - CSV batch prediction feature
 
-This project was made as part of a **Data Science group project**, developed by **Pratham**.
+This project was made as part of a **Data Science group project**, developed by **Pratham Sonpal**.
 
 ---
 
