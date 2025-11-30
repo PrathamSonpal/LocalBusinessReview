@@ -5,6 +5,7 @@ import joblib
 import os
 from io import BytesIO
 import traceback
+from sklearn.feature_extraction.text import CountVectorizer
 
 st.set_page_config(page_title="Local Business Review Analyzer", layout="wide")
 
@@ -77,16 +78,34 @@ with st.sidebar:
     st.markdown("**Notes**\n- If any file shows ❌, upload the matching joblib files into the app folder.\n- Filenames expected in this app: `sentiment_model.joblib`, `sentiment_tfidf_vectorizer.joblib`, `rating_model_LogisticRegression.joblib`, `rating_tfidf_vectorizer.joblib`.")
 
 def pred_sentiment(texts):
-    """Return predicted label and probability (if available)."""
+    """Return predicted label and probability (if available).
+    Uses TF-IDF vectorizer normally; if transform fails with an 'idf not fitted'
+    error, fall back to CountVectorizer with the same vocabulary as a quick patch.
+    """
     if sent_vec is None or sent_model is None:
         raise RuntimeError("Sentiment model or vectorizer not loaded.")
-    X = sent_vec.transform(texts)
+
+    try:
+        X = sent_vec.transform(texts)
+    except Exception as e:
+        # detect the common "idf vector is not fitted" message (case-insensitive)
+        msg = str(e).lower()
+        if "idf" in msg or "idf vector" in msg or "not fitted" in msg:
+            st.warning("TF-IDF transform failed; using vocabulary-only fallback (temporary).")
+            # fallback: use CountVectorizer with same vocabulary (avoid re-fitting original vec)
+            if hasattr(sent_vec, "vocabulary_") and sent_vec.vocabulary_:
+                fallback_vec = CountVectorizer(vocabulary=sent_vec.vocabulary_)
+                X = fallback_vec.transform(texts)
+            else:
+                raise RuntimeError("Sentiment vectorizer fallback unavailable (vocabulary missing).") from e
+        else:
+            raise
+
     # predict label
     y_pred = sent_model.predict(X)
     # try predict_proba
     try:
         y_proba = sent_model.predict_proba(X)
-        # create dict of probabilities with classes
         class_names = list(sent_model.classes_)
         probs = [dict(zip(class_names, p)) for p in y_proba]
     except Exception:
@@ -97,7 +116,21 @@ def pred_rating(texts):
     """Return predicted rating (1-5) and probability distribution (if available)."""
     if rating_vec is None or rating_model is None:
         raise RuntimeError("Rating model or vectorizer not loaded.")
-    X = rating_vec.transform(texts)
+
+    try:
+        X = rating_vec.transform(texts)
+    except Exception as e:
+        msg = str(e).lower()
+        if "idf" in msg or "idf vector" in msg or "not fitted" in msg:
+            st.warning("TF-IDF transform failed for rating model; using vocabulary-only fallback (temporary).")
+            if hasattr(rating_vec, "vocabulary_") and rating_vec.vocabulary_:
+                fallback_vec = CountVectorizer(vocabulary=rating_vec.vocabulary_)
+                X = fallback_vec.transform(texts)
+            else:
+                raise RuntimeError("Rating vectorizer fallback unavailable (vocabulary missing).") from e
+        else:
+            raise
+
     y_pred = rating_model.predict(X)
     try:
         y_proba = rating_model.predict_proba(X)
