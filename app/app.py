@@ -1,6 +1,5 @@
-# app.py — Clean UI + robust transform fallback
+# app.py — Minimal, production-looking UI (no debug banners)
 import os
-from io import BytesIO
 import joblib
 import pandas as pd
 import streamlit as st
@@ -15,12 +14,12 @@ MODEL_RATING    = os.path.join(BASE_DIR, "rating_model_LogisticRegression.joblib
 VEC_RATING      = os.path.join(BASE_DIR, "rating_tfidf_vectorizer.joblib")
 
 def safe_load(path):
+    """Load a joblib file; return None if missing or load fails (silently)."""
     if not os.path.exists(path):
         return None
     try:
         return joblib.load(path)
     except Exception:
-        # don't show full trace in UI — keep clean
         return None
 
 @st.cache_resource(show_spinner=False)
@@ -33,9 +32,7 @@ def load_models():
 
 sent_model, sent_vec, rating_model, rating_vec = load_models()
 
-# --------------------
-# Sidebar: compact status
-# --------------------
+# --- Sidebar: compact status only ---
 with st.sidebar:
     st.header("Model status")
     def tick(x): return "✅ Loaded" if x is not None else "❌ Missing"
@@ -44,29 +41,27 @@ with st.sidebar:
     st.markdown(f"**Rating model:** {tick(rating_model)}")
     st.markdown(f"**Rating vectorizer:** {tick(rating_vec)}")
     st.markdown("---")
-    st.markdown("Notes")
-    st.markdown("- Place the 4 `.joblib` files in the `app/` folder.")
-    st.markdown("- If a file shows ❌, upload matching joblib and redeploy.")
+    st.markdown("Notes:")
+    st.markdown("- Put the 4 `.joblib` files in the `app/` folder before deploy.")
+    st.markdown("- If any file is missing, upload and redeploy.")
 
 # --------------------
-# Helper: fallback transform using vocabulary-only CountVectorizer
+# Transform helper with vocabulary-only fallback (quiet)
 # --------------------
-def safe_transform(vec_obj, texts, model_name="vec"):
-    """Tries vec_obj.transform; if fails with 'idf not fitted' style error,
-       fallback to CountVectorizer using vec_obj.vocabulary_ (if available).
-       Returns (sparse_matrix, used_fallback_bool).
+def safe_transform(vec_obj, texts):
+    """Try transform; if TF-IDF 'not fitted' style failure happens,
+       fallback to CountVectorizer(vocabulary=vec_obj.vocabulary_) if available.
+       Returns (X, fallback_used_bool).
     """
     try:
         X = vec_obj.transform(texts)
         return X, False
     except Exception as e:
-        # If vocabulary exists we can fallback silently
         vocab = getattr(vec_obj, "vocabulary_", None)
         if vocab and isinstance(vocab, dict) and len(vocab) > 0:
             fallback = CountVectorizer(vocabulary=vocab)
             X = fallback.transform(texts)
             return X, True
-        # else re-raise (no fallback available)
         raise
 
 # --------------------
@@ -75,9 +70,8 @@ def safe_transform(vec_obj, texts, model_name="vec"):
 def pred_sentiment(texts):
     if sent_vec is None or sent_model is None:
         raise RuntimeError("Sentiment model or vectorizer not loaded.")
-    X, fallback_used = safe_transform(sent_vec, texts, "sentiment_vec")
+    X, fallback_used = safe_transform(sent_vec, texts)
     y_pred = sent_model.predict(X)
-    # probabilities if supported
     try:
         y_proba = sent_model.predict_proba(X)
         classes = list(sent_model.classes_)
@@ -89,7 +83,7 @@ def pred_sentiment(texts):
 def pred_rating(texts):
     if rating_vec is None or rating_model is None:
         raise RuntimeError("Rating model or vectorizer not loaded.")
-    X, fallback_used = safe_transform(rating_vec, texts, "rating_vec")
+    X, fallback_used = safe_transform(rating_vec, texts)
     y_pred = rating_model.predict(X)
     try:
         y_proba = rating_model.predict_proba(X)
@@ -100,14 +94,14 @@ def pred_rating(texts):
     return y_pred, probs, fallback_used
 
 # --------------------
-# Page header + UI
+# Page UI
 # --------------------
 st.title("Local Business Review Analyzer — Ahmedabad & Bangalore")
 st.markdown("Predict sentiment (positive/neutral/negative) and star rating (1–5) from review text.")
 
-# Single-review
+# Single-review prediction
 st.header("1) Single review prediction")
-review_input = st.text_area("Paste a review here", height=140)
+review_input = st.text_area("Paste a review here", height=140, placeholder="Type or paste customer review...")
 
 if st.button("Predict (Single)"):
     if not review_input or not review_input.strip():
@@ -121,9 +115,9 @@ if st.button("Predict (Single)"):
         except Exception as e:
             st.error("Prediction failed: " + str(e))
         else:
-            # warn once if either fallback used
+            # single user-friendly fallback warning if used
             if sent_fallback or rating_fallback:
-                st.warning("TF-IDF transform failed; app used a vocabulary-only fallback for this prediction (this can slightly change scores).")
+                st.warning("TF-IDF transform failed; a vocabulary-only fallback was used for this prediction (may slightly change scores).")
             st.markdown("**Prediction result**")
             st.write(f"**Predicted sentiment:** `{sent_label[0]}`")
             if sent_probs[0]:
@@ -139,7 +133,7 @@ if st.button("Predict (Single)"):
 
 # Batch predictions
 st.header("2) Batch predictions (CSV)")
-st.markdown("Upload a CSV with a review column — the app will add `pred_sentiment`, `pred_rating` and probability columns.")
+st.markdown("Upload a CSV with a review column — app will add `pred_sentiment`, `pred_rating` and probability columns.")
 uploaded_file = st.file_uploader("Upload CSV file", type=["csv"])
 if uploaded_file is not None:
     try:
@@ -183,4 +177,4 @@ if uploaded_file is not None:
                     st.download_button("Download predictions CSV", csv_bytes, file_name="predictions_with_model.csv", mime="text/csv")
 
 st.markdown("---")
-st.caption("If you see repeated fallback warnings, re-save the vectorizers (see helper script) or ensure deployment Python / numpy / scikit-learn versions match those used when the joblib files were created.")
+st.caption("Ensure joblib files are compatible with deployed Python / numpy / scikit-learn versions to avoid TF-IDF fallback.")
