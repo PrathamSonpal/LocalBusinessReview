@@ -1,4 +1,4 @@
-# app.py — Minimal, production-looking UI (no debug banners)
+# app.py — Clean final UI (no sidebar, no debug output)
 import os
 import joblib
 import pandas as pd
@@ -7,174 +7,170 @@ from sklearn.feature_extraction.text import CountVectorizer
 
 st.set_page_config(page_title="Local Business Review Analyzer", layout="wide")
 
+# Paths (inside app/ folder)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_SENTIMENT = os.path.join(BASE_DIR, "sentiment_model.joblib")
 VEC_SENTIMENT   = os.path.join(BASE_DIR, "sentiment_tfidf_vectorizer.joblib")
 MODEL_RATING    = os.path.join(BASE_DIR, "rating_model_LogisticRegression.joblib")
 VEC_RATING      = os.path.join(BASE_DIR, "rating_tfidf_vectorizer.joblib")
 
+# -------------------------
+# Load model utilities
+# -------------------------
 def safe_load(path):
-    """Load a joblib file; return None if missing or load fails (silently)."""
-    if not os.path.exists(path):
-        return None
     try:
+        if not os.path.exists(path):
+            return None
         return joblib.load(path)
     except Exception:
         return None
 
 @st.cache_resource(show_spinner=False)
 def load_models():
-    sent_model = safe_load(MODEL_SENTIMENT)
-    sent_vec = safe_load(VEC_SENTIMENT)
-    rating_model = safe_load(MODEL_RATING)
-    rating_vec = safe_load(VEC_RATING)
-    return sent_model, sent_vec, rating_model, rating_vec
+    return (
+        safe_load(MODEL_SENTIMENT),
+        safe_load(VEC_SENTIMENT),
+        safe_load(MODEL_RATING),
+        safe_load(VEC_RATING)
+    )
 
 sent_model, sent_vec, rating_model, rating_vec = load_models()
 
-# --- Sidebar: compact status only ---
-with st.sidebar:
-    st.header("Model status")
-    def tick(x): return "✅ Loaded" if x is not None else "❌ Missing"
-    st.markdown(f"**Sentiment model:** {tick(sent_model)}")
-    st.markdown(f"**Sentiment vectorizer:** {tick(sent_vec)}")
-    st.markdown(f"**Rating model:** {tick(rating_model)}")
-    st.markdown(f"**Rating vectorizer:** {tick(rating_vec)}")
-    st.markdown("---")
-    st.markdown("Notes:")
-    st.markdown("- Put the 4 `.joblib` files in the `app/` folder before deploy.")
-    st.markdown("- If any file is missing, upload and redeploy.")
-
-# --------------------
-# Transform helper with vocabulary-only fallback (quiet)
-# --------------------
+# -------------------------
+# TF-IDF safe transform helper
+# -------------------------
 def safe_transform(vec_obj, texts):
-    """Try transform; if TF-IDF 'not fitted' style failure happens,
-       fallback to CountVectorizer(vocabulary=vec_obj.vocabulary_) if available.
-       Returns (X, fallback_used_bool).
-    """
+    """Try TF-IDF transform, fallback to CountVectorizer(vocabulary) quietly."""
     try:
-        X = vec_obj.transform(texts)
-        return X, False
-    except Exception as e:
+        return vec_obj.transform(texts), False
+    except Exception:
         vocab = getattr(vec_obj, "vocabulary_", None)
-        if vocab and isinstance(vocab, dict) and len(vocab) > 0:
+        if vocab and isinstance(vocab, dict):
             fallback = CountVectorizer(vocabulary=vocab)
-            X = fallback.transform(texts)
-            return X, True
-        raise
+            return fallback.transform(texts), True
+        raise RuntimeError("Vectorizer transform failed; vocabulary missing.")
 
-# --------------------
+# -------------------------
 # Prediction functions
-# --------------------
+# -------------------------
 def pred_sentiment(texts):
-    if sent_vec is None or sent_model is None:
-        raise RuntimeError("Sentiment model or vectorizer not loaded.")
-    X, fallback_used = safe_transform(sent_vec, texts)
+    if sent_model is None or sent_vec is None:
+        raise RuntimeError("Sentiment model/files missing.")
+    X, fallback = safe_transform(sent_vec, texts)
     y_pred = sent_model.predict(X)
     try:
-        y_proba = sent_model.predict_proba(X)
+        proba = sent_model.predict_proba(X)
         classes = list(sent_model.classes_)
-        probs = [dict(zip(classes, p)) for p in y_proba]
-    except Exception:
+        probs = [dict(zip(classes, p)) for p in proba]
+    except:
         probs = [None] * len(y_pred)
-    return y_pred, probs, fallback_used
+    return y_pred, probs, fallback
 
 def pred_rating(texts):
-    if rating_vec is None or rating_model is None:
-        raise RuntimeError("Rating model or vectorizer not loaded.")
-    X, fallback_used = safe_transform(rating_vec, texts)
+    if rating_model is None or rating_vec is None:
+        raise RuntimeError("Rating model/files missing.")
+    X, fallback = safe_transform(rating_vec, texts)
     y_pred = rating_model.predict(X)
     try:
-        y_proba = rating_model.predict_proba(X)
+        proba = rating_model.predict_proba(X)
         classes = list(rating_model.classes_)
-        probs = [dict(zip(classes, p)) for p in y_proba]
-    except Exception:
+        probs = [dict(zip(classes, p)) for p in proba]
+    except:
         probs = [None] * len(y_pred)
-    return y_pred, probs, fallback_used
+    return y_pred, probs, fallback
 
-# --------------------
-# Page UI
-# --------------------
-st.title("Local Business Review Analyzer — Ahmedabad & Bangalore")
-st.markdown("Predict sentiment (positive/neutral/negative) and star rating (1–5) from review text.")
+# ------------------------------------------------
+#                 PAGE UI (NO SIDEBAR)
+# ------------------------------------------------
+st.markdown("<h1 style='text-align:center;'>📊 Local Business Review Analyzer</h1>", unsafe_allow_html=True)
+st.markdown("<h3 style='text-align:center;'>Ahmedabad & Bangalore</h3>", unsafe_allow_html=True)
+st.write("")
+st.write("This tool predicts **sentiment** (positive / neutral / negative) and **star rating (1–5)** from customer reviews using NLP models.")
 
-# Single-review prediction
-st.header("1) Single review prediction")
-review_input = st.text_area("Paste a review here", height=140, placeholder="Type or paste customer review...")
+# ------------------------------------------------
+# Single Review Prediction
+# ------------------------------------------------
+st.markdown("## 🔍 Single Review Prediction")
 
-if st.button("Predict (Single)"):
-    if not review_input or not review_input.strip():
-        st.warning("Please paste a review to predict.")
+review = st.text_area("Paste a customer review:", height=160)
+
+if st.button("Predict"):
+    if not review.strip():
+        st.warning("Please enter a review.")
     else:
         try:
-            sent_label, sent_probs, sent_fallback = pred_sentiment([review_input.strip()])
-            rating_label, rating_probs, rating_fallback = pred_rating([review_input.strip()])
-        except RuntimeError as e:
-            st.error(str(e))
+            s_label, s_probs, s_fallback = pred_sentiment([review])
+            r_label, r_probs, r_fallback = pred_rating([review])
         except Exception as e:
-            st.error("Prediction failed: " + str(e))
+            st.error("Prediction failed. Model files may be incompatible.")
         else:
-            # single user-friendly fallback warning if used
-            if sent_fallback or rating_fallback:
-                st.warning("TF-IDF transform failed; a vocabulary-only fallback was used for this prediction (may slightly change scores).")
-            st.markdown("**Prediction result**")
-            st.write(f"**Predicted sentiment:** `{sent_label[0]}`")
-            if sent_probs[0]:
-                st.write("Sentiment probabilities:")
-                st.json(sent_probs[0])
-            st.write(f"**Predicted rating:** `{rating_label[0]}`")
-            if rating_probs[0]:
-                proba_df = pd.DataFrame.from_dict(rating_probs[0], orient='index', columns=['prob']).reset_index()
-                proba_df.columns = ['rating', 'probability']
-                proba_df['rating'] = proba_df['rating'].astype(str)
-                proba_df = proba_df.sort_values('probability', ascending=False)
-                st.table(proba_df)
+            if s_fallback or r_fallback:
+                st.info("⚠️ TF-IDF unavailable — using fallback transformer.")
 
-# Batch predictions
-st.header("2) Batch predictions (CSV)")
-st.markdown("Upload a CSV with a review column — app will add `pred_sentiment`, `pred_rating` and probability columns.")
-uploaded_file = st.file_uploader("Upload CSV file", type=["csv"])
-if uploaded_file is not None:
+            st.markdown("### 🔎 Prediction Result")
+            st.write(f"**Sentiment:** `{s_label[0]}`")
+            if s_probs[0]:
+                st.write("Sentiment probabilities:")
+                st.json(s_probs[0])
+
+            st.write(f"**Predicted Rating:** ⭐ {r_label[0]}")
+            if r_probs[0]:
+                dfp = pd.DataFrame.from_dict(r_probs[0], orient='index', columns=['prob']).reset_index()
+                dfp.columns = ['Rating', 'Probability']
+                dfp = dfp.sort_values('Probability', ascending=False)
+                st.table(dfp)
+
+# ------------------------------------------------
+# Batch CSV Prediction
+# ------------------------------------------------
+st.markdown("## 📂 Batch Prediction (CSV Upload)")
+
+up = st.file_uploader("Upload a CSV containing review text", type=["csv"])
+
+if up:
     try:
-        df = pd.read_csv(uploaded_file)
-    except Exception as e:
-        st.error("Error reading CSV: " + str(e))
+        df = pd.read_csv(up)
+    except Exception:
+        st.error("Could not read CSV file.")
         df = None
 
     if df is not None:
-        st.write("Preview:")
+        st.write("### Preview")
         st.dataframe(df.head())
-        cols = df.columns.tolist()
-        default_idx = 0
-        for i,c in enumerate(cols):
-            if "review" in c.lower() or "text" in c.lower():
-                default_idx = i; break
-        review_col = st.selectbox("Which column has review text?", cols, index=default_idx)
 
-        if st.button("Run batch predictions"):
-            texts = df[review_col].astype(str).fillna("").tolist()
-            if len([t for t in texts if t.strip()]) == 0:
-                st.warning("No non-empty reviews found in selected column.")
+        columns = df.columns.tolist()
+        default_col = 0
+        for i, c in enumerate(columns):
+            if "review" in c.lower() or "text" in c.lower():
+                default_col = i; break
+
+        col = st.selectbox("Select the review column:", columns, index=default_col)
+
+        if st.button("Run Batch Prediction"):
+            texts = df[col].astype(str).fillna("").tolist()
+            try:
+                s_lbl, s_proba, s_fb = pred_sentiment(texts)
+                r_lbl, r_proba, r_fb = pred_rating(texts)
+            except Exception:
+                st.error("Batch prediction failed.")
             else:
-                try:
-                    sent_labels, sent_probs, sent_fallback = pred_sentiment(texts)
-                    rating_labels, rating_probs, rating_fallback = pred_rating(texts)
-                except RuntimeError as e:
-                    st.error(str(e))
-                except Exception as e:
-                    st.error("Batch prediction failed: " + str(e))
-                else:
-                    if sent_fallback or rating_fallback:
-                        st.warning("TF-IDF transform failed for some predictions; vocabulary-only fallback was used.")
-                    df["pred_sentiment"] = sent_labels
-                    df["pred_sentiment_proba"] = [str(p) if p is not None else "" for p in sent_probs]
-                    df["pred_rating"] = rating_labels
-                    df["pred_rating_proba"] = [str(p) if p is not None else "" for p in rating_probs]
-                    st.success("Predictions added to dataframe!")
-                    st.dataframe(df.head())
-                    csv_bytes = df.to_csv(index=False).encode("utf-8")
-                    st.download_button("Download predictions CSV", csv_bytes, file_name="predictions_with_model.csv", mime="text/csv")
+                if s_fb or r_fb:
+                    st.info("⚠️ TF-IDF unavailable — fallback used.")
+
+                df['pred_sentiment'] = s_lbl
+                df['pred_sentiment_proba'] = [str(p) if p else "" for p in s_proba]
+                df['pred_rating'] = r_lbl
+                df['pred_rating_proba'] = [str(p) if p else "" for p in r_proba]
+
+                st.success("Predictions added!")
+                st.dataframe(df.head())
+
+                st.download_button(
+                    "Download results",
+                    df.to_csv(index=False).encode("utf-8"),
+                    "predictions.csv",
+                    "text/csv"
+                )
 
 st.markdown("---")
-st.caption("Ensure joblib files are compatible with deployed Python / numpy / scikit-learn versions to avoid TF-IDF fallback.")
+st.caption("Developed as part of a Data Science Group Project — 2025")
