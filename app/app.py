@@ -7,12 +7,10 @@ from sklearn.feature_extraction.text import CountVectorizer
 
 st.set_page_config(page_title="Local Business Review Analyzer", layout="wide")
 
-# Paths (inside app/ folder)
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_SENTIMENT = os.path.join(BASE_DIR, "sentiment_model.joblib")
-VEC_SENTIMENT   = os.path.join(BASE_DIR, "sentiment_tfidf_vectorizer.joblib")
-MODEL_RATING    = os.path.join(BASE_DIR, "rating_model_LogisticRegression.joblib")
-VEC_RATING      = os.path.join(BASE_DIR, "rating_tfidf_vectorizer.joblib")
+MODEL_SENTIMENT = "sentiment_model.joblib"
+VEC_SENTIMENT   = "sentiment_tfidf_vectorizer.joblib"
+MODEL_RATING    = "rating_model_LogisticRegression.joblib"
+VEC_RATING      = "rating_tfidf_vectorizer.joblib"
 
 # -------------------------
 # Load model utilities
