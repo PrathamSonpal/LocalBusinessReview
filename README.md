@@ -17,7 +17,9 @@ It includes:
 This project was made as part of a **Data Science group project**, developed by **Pratham Sonpal**.
 
 ---
+Link: https://localbusinessreview.streamlit.app/
 
+---
 ## Dataset
 The dataset contains reviews from two Indian cities:
 
